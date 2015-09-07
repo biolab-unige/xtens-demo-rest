@@ -1,23 +1,23 @@
 from __future__  import print_function
 import requests
 import json
+from local import xtens_config
+from local import irods_rest_config
 
 __author__ = 'massi'
 
-irods_username = 'xtensdevel'
-irods_password = 'xtensdevel'
-xtens_app_uri = "http://localhost:1337"
-
-irods_rest_uri = "http://130.251.10.60:8080/irods-rest/rest"
 file_download_fragm = "/fileContents"
 file_info_fragm = "/dataObject"
-
 chunk_size = 1024
 
 def xtens_log_in():
-    xtens_credentials = {'identifier':'admin', 'password':'admin1982'}
+    xtens_credentials = {
+        'identifier': xtens_config['username'],
+        'password': xtens_config['password']
+    }
+
     # XTENS Requests begin here!!
-    r = requests.post(xtens_app_uri + "/login", data=xtens_credentials)
+    r = requests.post(xtens_config['address'] + "/login", data=xtens_credentials)
     res = r.json()
     bearer_token = res['token']
 
@@ -37,7 +37,7 @@ def test_post(data_type_name='MRI'):
         'model': 'Subject',
         'name': 'Patient'
     }
-    r = requests.get(xtens_app_uri + '/dataType', headers=headers, params=payload)
+    r = requests.get(xtens_config['address'] + '/dataType', headers=headers, params=payload)
     subj_type = r.json()[0]
 
     subj = {
@@ -46,7 +46,7 @@ def test_post(data_type_name='MRI'):
         'sex': 'N.D.'
     }
 
-    r = requests.post(xtens_app_uri + '/subject', headers=headers, data=json.dumps(subj))
+    r = requests.post(xtens_config['address'] + '/subject', headers=headers, data=json.dumps(subj))
     created_subject = r.json()
     print(created_subject)
 
@@ -54,7 +54,7 @@ def test_post(data_type_name='MRI'):
     payload = {
         'name':'MRI'
     }
-    r = requests.get(xtens_app_uri + '/dataType', headers=headers, params=payload)
+    r = requests.get(xtens_config['address'] + '/dataType', headers=headers, params=payload)
     id_data_type = r.json()[0]['id']
 
     # build new data to be created (in thi case an MRI instance with only one metadata field
@@ -63,7 +63,7 @@ def test_post(data_type_name='MRI'):
         'parentSubject': created_subject['id'],
         'metadata': {'acquisition_type': {'value':'T1'}}
     }
-    r = requests.post(xtens_app_uri + '/data', headers=headers, data=json.dumps(payload))
+    r = requests.post(xtens_config['address'] + '/data', headers=headers, data=json.dumps(payload))
     created_data = r.json()
     print("New data created: ")
     print(created_data)
@@ -76,14 +76,14 @@ def test_get(patient_code, data_type_name):
 
     #get patient info
     payload = {'code':patient_code}
-    r = requests.get(xtens_app_uri + "/subject", headers=headers, params=payload)
-    subject = r.json()[0] # subj CODE is unique so let's take the first element of the lists
+    r = requests.get(xtens_config['address'] + "/subject", headers=headers, params=payload)
+    subject = r.json()[0]   # subj CODE is unique so let's take the first element of the lists
     print(subject['id'])
 
     #get data_type info
     payload = {'name': data_type_name}
-    r = requests.get(xtens_app_uri + "/dataType", headers=headers, params=payload)
-    data_type = r.json()[0] # data_type NAME is unique so let's take the first element of the lists
+    r = requests.get(xtens_config['address'] + "/dataType", headers=headers, params=payload)
+    data_type = r.json()[0]     # data_type NAME is unique so let's take the first element of the lists
     print(data_type['id'])
 
     id_subject = subject['id']
@@ -95,13 +95,13 @@ def test_get(patient_code, data_type_name):
     }
 
     #make a get to retrieve a data instance
-    r = requests.get(xtens_app_uri + "/data", headers=headers, params=payload)
+    r = requests.get(xtens_config['address'] + "/data", headers=headers, params=payload)
 
     # get the associated list of files
     data = r.json()
 
     # for sake of simplicity, let's get the first data instance
-    datum = data[1]
+    datum = data[0]
     file_list = datum['files']
     print(datum)
 
@@ -113,7 +113,8 @@ def test_get(patient_code, data_type_name):
     for data_file in file_list:
 
         # retrieve file details
-        r = requests.get(irods_rest_uri + file_info_fragm + data_file['uri'], headers=headers, auth=(irods_username,irods_password))
+        r = requests.get(irods_rest_config['address'] + file_info_fragm + data_file['uri'], headers=headers,
+                         auth=(irods_rest_config['username'],irods_rest_config['password']))
         file_detail = r.json()
         print ("File path is: ")
         print(file_detail['dataPath'])
@@ -123,7 +124,8 @@ def test_get(patient_code, data_type_name):
         filename = data_file['uri'].split("/")[-1]
         print("filename is: ", filename)
         with open(filename, 'wb') as fd:
-            r = requests.get(irods_rest_uri + file_download_fragm + data_file['uri'], auth=(irods_username,irods_password))
+            r = requests.get(irods_rest_config['address'] + file_download_fragm + data_file['uri'],
+                             auth=(irods_rest_config['username'],irods_rest_config['password']))
 
             if not r.ok:
                 print("Got some error while trying to download the file")
